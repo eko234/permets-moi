@@ -2,6 +2,7 @@ use fmt;
 use os;
 use fs;
 use strconv;
+use io;
 
 type config = struct{
 	files: fs::mode,
@@ -13,7 +14,6 @@ const default_config: config = config {
 	dirs = (fs::mode::USER_RWX ^ fs::mode::GROUP_RWX ^ fs::mode::OTHER_RX), // drwxrwxr-x
 };
 
-
 fn isDotty(fname: str) bool = {
 	if (fname == "." || fname == "..") {
   	return true;
@@ -22,7 +22,17 @@ fn isDotty(fname: str) bool = {
 	};
 };
 
-fn recufix(path: str) void = {
+fn recufix(path: str, toplevel: bool) (void | io::error) = {
+
+	if (toplevel) {
+  	match (os::chmod(path, default_config.dirs)) {
+  	case let err: fs::error =>
+  		fmt::fatalf("Seems you didn't provided a directory or maybe you don't have the permissions needed to alter it");
+  	case =>
+  		fmt::println("OK...")!;
+  	};
+	};
+
 	match (os::readdir(path)) {
 	case let err: fs::error =>
   	fmt::printf("Oops: {} for {}\n",fs::strerror(err), path)!;
@@ -34,7 +44,7 @@ fn recufix(path: str) void = {
 			if (fs::isdir(ents[i].ftype)) {
       	os::chmod(fullpath, 0)!;
       	os::chmod(fullpath, default_config.dirs)!;
-      	recufix(fmt::asprintf("{}/{}", path, ents[i].name));
+      	recufix(fmt::asprintf("{}/{}", path, ents[i].name), false)!;
 			} else {
       	os::chmod(fullpath, 0)!;
        	os::chmod(fullpath, default_config.files)!;
@@ -48,5 +58,5 @@ export fn main() void = {
 	if (len(os::args) < 2) {
 		fmt::fatalf("You must provide the path");
 	};
-	recufix(os::args[1]);
+	recufix(os::args[1], true)!;
 };
